@@ -1,18 +1,16 @@
 CREATE OR REPLACE PROCEDURE SP_GET_TABLE_INFO_JS(P_TABLE_NAMES_CSV VARCHAR)
-RETURNS TABLE (TABLE_SCHEMA VARCHAR, TABLE_NAME VARCHAR)
+RETURNS ARRAY
 LANGUAGE JAVASCRIPT
 AS
 $$
+var resultsArray = []; // Initialize at the beginning
+
 // Retrieve the input parameter
 var input_csv = P_TABLE_NAMES_CSV;
 
 // Check if input_csv is null, empty, or contains only whitespace
 if (input_csv === null || input_csv.trim() === "") {
-  // Return an empty result set matching the procedure's return table structure
-  var emptyQueryNoInput = "SELECT NULL AS TABLE_SCHEMA, NULL AS TABLE_NAME WHERE 1=0;";
-  var stmtNoInput = snowflake.createStatement({sqlText: emptyQueryNoInput});
-  var resultSetNoInput = stmtNoInput.execute();
-  return resultSetNoInput;
+  return resultsArray; // Return empty array
 }
 
 // Split the P_TABLE_NAMES_CSV string by commas
@@ -29,11 +27,7 @@ for (var i = 0; i < table_names_array.length; i++) {
 
 // If, after parsing and filtering, the list of table names is empty
 if (cleaned_table_names.length === 0) {
-  // Return an empty result set matching the procedure's return table structure
-  var emptyQueryParsed = "SELECT NULL AS TABLE_SCHEMA, NULL AS TABLE_NAME WHERE 1=0;";
-  var stmtParsedEmpty = snowflake.createStatement({sqlText: emptyQueryParsed});
-  var resultSetParsedEmpty = stmtParsedEmpty.execute();
-  return resultSetParsedEmpty;
+  return resultsArray; // Return empty array
 }
 
 // Construct the SQL query string
@@ -50,5 +44,15 @@ var bindings_array = cleaned_table_names;
 // Execute the main query
 var stmt = snowflake.createStatement({sqlText: sql_query_string, binds: bindings_array});
 var resultSet = stmt.execute();
-return resultSet;
+
+// Loop through the resultSet and populate resultsArray
+while (resultSet.next()) {
+  var rowObject = {
+    "TABLE_SCHEMA": resultSet.getColumnValue('TABLE_SCHEMA'),
+    "TABLE_NAME": resultSet.getColumnValue('TABLE_NAME')
+  };
+  resultsArray.push(rowObject);
+}
+
+return resultsArray;
 $$;
